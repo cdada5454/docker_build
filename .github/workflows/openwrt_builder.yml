@@ -1,50 +1,30 @@
-name: Build OpenWrt Firmware with Plugins
+name: OpenWrt Builder
 
 on:
-  push:
-    branches:
-      - main
-  pull_request:
-    branches:
-      - main
+  workflow_dispatch: 
 
 jobs:
   build:
     runs-on: ubuntu-latest
-    container:
-      image: openwrt/imagebuilder:latest
-      options: --user 1000:1000
-
     steps:
+    
     - name: Checkout repository
-      uses: actions/checkout@main
+      uses: actions/checkout@v4
 
-    - name: Set up OpenWrt build environment
+    - name: Pull OpenWrt ImageBuilder
+      run: |  
+        docker pull openwrt/imagebuilder:x86-64-openwrt-24.10
+
+    - name: Run ImageBuilder inside Docker
       run: |
-        mkdir -p /workspace/openwrt
-        cp -r . /workspace/openwrt
-        cd /workspace/openwrt
+        docker run --rm -i \
+          --user root \
+          -v ${{ github.workspace }}/bin:/home/build/openwrt/bin \
+          -v ${{ github.workspace }}/buildstart/build.sh:/home/build/openwrt/build.sh \
+          openwrt/imagebuilder:x86-64-openwrt-24.10 /bin/bash /home/build/openwrt/build.sh
 
-        # 如果需要修改 feeds 配置，可以在这里进行修改
-        echo "src/gz openwrt_core http://downloads.openwrt.org/snapshots/targets/x86/64/packages" >> /etc/opkg/feeds.conf.default
-        echo "src/gz openwrt_packages http://downloads.openwrt.org/snapshots/packages/x86_64/packages" >> /etc/opkg/feeds.conf.default
-        opkg update
-
-        # 选择插件或包
-        # 这里以 luci-app-sqm 为例，可以添加其他插件或者自定义插件
-        echo "luci-app-sqm" >> /workspace/openwrt/package/feeds/luci/luci-app-sqm/Makefile
-
-        # 更新并安装插件，确保插件被包含
-        ./scripts/feeds update -a
-        ./scripts/feeds install -a
-
-    - name: Run imagebuilder to build firmware
-      run: |
-        cd /workspace/openwrt
-        make firmware
-
-    - name: Upload built firmware
-      uses: actions/upload-artifact@main
+    - name: Upload firmware as artifact
+      uses: actions/upload-artifact@v4
       with:
         name: openwrt-firmware
-        path: ./bin/targets/*/openwrt-*.img
+        path: bin/
