@@ -1,30 +1,63 @@
-name: OpenWrt Builder
+name: build-x86-64-immortalwrt-24.10.0
 
 on:
-  workflow_dispatch: 
+  workflow_dispatch:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
+
     steps:
-    
-    - name: Checkout repository
-      uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v3
 
-    - name: Pull OpenWrt ImageBuilder
-      run: |  
-        docker pull openwrt/imagebuilder:x86-64-openwrt-24.10
+      - name: Set executable permissions
+        run: chmod +x ${{ github.workspace }}/x86-64/build.sh
 
-    - name: Run ImageBuilder inside Docker
-      run: |
-        docker run --rm -i \
-          --user root \
-          -v ${{ github.workspace }}/bin:/home/build/openwrt/bin \
-          -v ${{ github.workspace }}/buildstart/build.sh:/home/build/openwrt/build.sh \
-          openwrt/imagebuilder:x86-64-openwrt-24.10 /bin/bash /home/build/openwrt/build.sh
+      - name: Build ImmortalWrt-x86-64-efi
+        run: |
+          profiles="${{ github.event.inputs.profile }}"
+          include_docker="${{ github.event.inputs.include_docker }}"
+          IFS=',' read -r -a profile_array <<< "$profiles"
+          
+          for profile in "${profile_array[@]}"; do
+            echo "Building for profile: $profile"
+            
+            docker run --rm -i \
+              --user root \
+              -v "${{ github.workspace }}/bin:/home/build/immortalwrt/bin" \
+              -v "${{ github.workspace }}/files:/home/build/immortalwrt/files" \
+              -v "${{ github.workspace }}/x86-64/imm.config:/home/build/immortalwrt/.config" \
+              -v "${{ github.workspace }}/x86-64/24.10/build.sh:/home/build/immortalwrt/build.sh" \
+              immortalwrt/imagebuilder:x86-64-openwrt-24.10.0 /bin/bash /home/build/immortalwrt/build.sh
+          done
 
-    - name: Upload firmware as artifact
-      uses: actions/upload-artifact@v4
-      with:
-        name: openwrt-firmware
-        path: bin/
+      - name: Generate Firmware SHA-256
+        run: |
+          cp ${{ github.workspace }}/bin/targets/x86/64/*squashfs-combined-efi.img.gz ${{ github.workspace }}
+          for file in *squashfs-combined-efi.img.gz; do
+            sha256sum "$file" > "$file.sha256"
+            sha256sum -c "$file.sha256"
+          done
+
+      - name: Create info
+        run: |
+          if [ "${{ github.event.inputs.include_docker }}" == "yes" ]; then
+            extra_content="#### 默认带docker"
+            echo -e "\n $extra_content" >> ${{ github.workspace }}/info.md
+          else
+            echo -e "NO docker"
+          fi
+
+      - name: Upload ImmortWrt as release assets
+        uses: softprops/action-gh-release@v2.2.1
+        with:
+          tag_name: Autobuild-x86-64
+          body_path: ${{ github.workspace }}/info.md
+          files: |
+            ${{ github.workspace }}/*squashfs-combined-efi.img.gz
+            ${{ github.workspace }}/*.sha256
+          token: ${{ secrets.GITHUB_TOKEN }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
