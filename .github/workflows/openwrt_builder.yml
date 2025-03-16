@@ -1,0 +1,51 @@
+name: OpenWrt Builder
+
+on:
+  workflow_dispatch:  # 允许手动触发
+  push:
+    branches:
+      - main  # 仅在 main 分支推送时触发
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Pull OpenWrt ImageBuilder
+      run: |  
+        docker pull openwrt/imagebuilder:x86-64-openwrt-24.10
+
+    - name: Prepare build script
+      run: |
+        mkdir -p openwrt
+        cat << 'EOF' > openwrt/build.sh
+        #!/bin/bash
+        set -e
+        
+        echo "src-git helloworld https://github.com/fw876/helloworld.git" >> feeds.conf.default
+        ./scripts/feeds update -a
+        ./scripts/feeds install -a
+        
+        make defconfig
+        
+        make -j$(nproc) PROFILE=$PROFILE CONFIG_PACKAGE_luci-app-ssr-plus=y
+        EOF
+
+        chmod +x openwrt/build.sh
+
+    - name: Run ImageBuilder inside Docker
+      run: |
+        docker run --rm -i \
+          --user root \
+          -v ${{ github.workspace }}/bin:/home/build/openwrt/bin \
+          -v ${{ github.workspace }}/openwrt/build.sh:/home/build/openwrt/build.sh \
+          openwrt/imagebuilder:x86-64-openwrt-24.10 /bin/bash /home/build/openwrt/build.sh
+
+    - name: Upload firmware as artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: openwrt-firmware
+        path: bin/
