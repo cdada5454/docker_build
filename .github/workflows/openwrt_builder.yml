@@ -23,7 +23,7 @@ jobs:
         docker run --rm -i \
           --user root \
           -v ${{ github.workspace }}/bin:/home/build/openwrt/bin \
-          -v ${{ github.workspace }}/build.sh:/home/build/openwrt/build.sh \
+          -v ${{ github.workspace }}/buildstart/build.sh:/home/build/openwrt/build.sh \
           openwrt/imagebuilder:x86-64-openwrt-24.10 /bin/bash /home/build/openwrt/build.sh
 
     - name: Upload firmware as artifact
