@@ -44,7 +44,7 @@ jobs:
         make firmware
 
     - name: Upload built firmware
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@main
       with:
         name: openwrt-firmware
         path: ./bin/targets/*/openwrt-*.img
