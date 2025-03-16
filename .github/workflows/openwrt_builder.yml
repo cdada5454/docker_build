@@ -1,10 +1,7 @@
 name: OpenWrt Builder
 
 on:
-  workflow_dispatch:  # 允许手动触发
-  push:
-    branches:
-      - main  # 仅在 main 分支推送时触发
+  workflow_dispatch: 
 
 jobs:
   build:
